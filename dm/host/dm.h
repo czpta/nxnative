@@ -92,6 +92,7 @@ void nro_unload(module_t *m);   // take an NRO out of the lookups and bind the i
 int svc_nro_deactivate(module_t *m);   // mark inactive under the memory map lock, refusing while a stack borrows its data
 void *module_sym(module_t *m, const char *name);
 int dm_sdk_major(void);   // SDK major version from the sdk module's version string (loader.c); 0 = unknown
+int dm_sdk_ounce(void);   // 1 when the sdk module was built for the Switch 2 (its spec string "spec: Ounce", loader.c)
 #define DM_SDK_OLD(major) ((major) > 0 && (major) <= 10)   // SDK 10 and older: NVN API 53, the shared-font address points at the TTF itself
 int dm_main_imports(const char *prefix);   // main imports a symbol whose name starts with prefix (loader.c)
 void *guest_sym(const char *name);

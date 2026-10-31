@@ -151,12 +151,18 @@ static const int g_devinfo[] = {
 // The NVN API version the game's own driver would report follows its SDK: games check it and create no device on a mismatch. SDK 10 and older are API 53 (Super Mario 3D World 10.4,
 // Age of Calamity 9.6, Link's Awakening 8, Odyssey 7.3, Three Houses 6.5); SDK 11 and later take 55.15
 __attribute__((weak)) int dm_sdk_major(void) { return 0; }   // loader.c; graphics unit tests have no loader
+__attribute__((weak)) int dm_sdk_ounce(void) { return 0; }
 __attribute__((weak)) int dm_glslc_gpu_code(int *major, int *minor) { *major = *minor = 0; return 0; }   // hle_glslc.c: the game's own GLSLC's GPU code version
 static void nvn_api(int api[2]) {
 #ifdef DM_GAME_NVN_API_MAJOR
     api[0] = DM_GAME_NVN_API_MAJOR; api[1] = DM_GAME_NVN_API_MINOR; LOG("[nvn] device API %d.%d (game profile device_api)", api[0], api[1]);
 #else
-    int m = dm_sdk_major(); api[0] = DM_SDK_OLD(m) ? 53 : g_devinfo[0]; api[1] = DM_SDK_OLD(m) ? 313 : g_devinfo[1]; LOG("[nvn] device API %d.%d (SDK %d)", api[0], api[1], m);
+    // The Switch 2's NVN2 is API 231: Donkey Kong Bananza (SDK 20.5.19 Ounce) requires major == 231 and minor >= 30 (main+0x5c61a4) and creates its graphics system only then.
+    // 30 is that floor, not a value measured on hardware
+    int m = dm_sdk_major();
+    if (dm_sdk_ounce()) { api[0] = 231; api[1] = 30; }
+    else { api[0] = DM_SDK_OLD(m) ? 53 : g_devinfo[0]; api[1] = DM_SDK_OLD(m) ? 313 : g_devinfo[1]; }
+    LOG("[nvn] device API %d.%d (SDK %d%s)", api[0], api[1], m, dm_sdk_ounce() ? ", Switch 2" : "");
 #endif
 }
 NVN(nvnDeviceGetInteger, void, const NVNdevice *d, NVNdeviceInfo what, int *out) {
@@ -2344,6 +2350,26 @@ NVN_NOPROTO(nvnProgramSetShadersExt, NVNboolean, NVNprogram *p, int n, const sha
     for (int i = 0; i < n; i++) { plain[i].data = sd[i].data; plain[i].control = sd[i].control; if (sd[i].ext) ONCE_LOG("ProgramSetShadersExt extension field nonzero (%#llx): unused by the host", (unsigned long long)sd[i].ext); }
     return h_nvnProgramSetShaders(p, n, plain);
 }
+
+// NVN2 (Switch 2) creates programs from a builder: SetDefaults, SetDevice, SetShaders(count, NVNshaderData[]) and then nvnProgramInitializeFromBuilder (Donkey Kong Bananza). The stages are
+// 16-byte {data, control} pairs as in NVN, so initializing from the builder is nvnProgramInitialize + nvnProgramSetShaders. The builder only keeps the caller's array, which the game keeps
+// until it initializes the program (its stack frame), as other NVN builders keep their pointers
+typedef struct { NVNdevice *dev; const NVNshaderData *sd; int n; } prog_builder_t;
+NVN_NOPROTO(nvnProgramBuilderSetDefaults, void, void *b) { memset(b, 0, sizeof(prog_builder_t)); }
+NVN_NOPROTO(nvnProgramBuilderSetDevice, void, void *b, NVNdevice *d) { ((prog_builder_t *)b)->dev = d; }
+NVN_NOPROTO(nvnProgramBuilderSetShaders, void, void *b, int n, const NVNshaderData *sd) { ((prog_builder_t *)b)->n = n; ((prog_builder_t *)b)->sd = sd; }
+NVN_NOPROTO(nvnProgramInitializeFromBuilder, NVNboolean, NVNprogram *p, const void *b) {
+    const prog_builder_t *o = (const prog_builder_t *)b;
+    return h_nvnProgramInitialize(p, o->dev) && (!o->n || h_nvnProgramSetShaders(p, o->n, o->sd));
+}
+// A queue NVN2 ties to a primary queue (Donkey Kong Bananza's second queue): the host executes every queue's submits in order on its one Metal queue, so the tie needs no work
+NVN_NOPROTO(nvnQueueBuilderSetPrimaryQueue, void, NVNqueueBuilder *b, NVNqueue *primary) { (void)b; (void)primary; }
+// NVN2 command buffer modes Donkey Kong Bananza sets on every command buffer it begins: they tune how the GPU's front end runs the commands (whether compute may overlap the next
+// work, how geometry is processed, how commands are recorded), not what they produce. The host records and replays every command in order on Metal, so none changes its result.
+// Logged once each with the first value; open: what the values select on the console
+NVN_NOPROTO(nvnCommandBufferSetRecordingMode, void, NVNcommandBuffer *c, int mode) { (void)c; ONCE_LOG("nvnCommandBufferSetRecordingMode %d: the host records every command buffer alike", mode); }
+NVN_NOPROTO(nvnCommandBufferSetGeometryProcessingMode, void, NVNcommandBuffer *c, int mode) { (void)c; ONCE_LOG("nvnCommandBufferSetGeometryProcessingMode %d: no effect on Metal", mode); }
+NVN_NOPROTO(nvnCommandBufferSetComputeOverlapMode, void, NVNcommandBuffer *c, int mode) { (void)c; ONCE_LOG("nvnCommandBufferSetComputeOverlapMode %d: the host runs compute in submission order", mode); }
 
 // nvnProgramSetSampleShading (NVN 53+): whether the program's fragment shader runs once per sample of a multisampled target. Metroid Prime Remastered sets it on its programs
 // (modes 0, 1 and 2, from CGraphicsDeviceContext's sample shading state). Metal has no such switch: a fragment function runs per sample when it reads the sample index ([[sample_id]],
