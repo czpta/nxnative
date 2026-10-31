@@ -1,6 +1,6 @@
 # Donkey Kong Bananza (`040074A01BF12000`)
 
-A Switch 2 game: update v458752 over the base game, SDK 20.5.19 built for the Switch 2 (`sdk` names its spec `Ounce`), NVN2. Nintendo EPD's engine (sead / agl / gsys, Phive), modules `main` + `sdk`. **In bring-up, not playable:** on the Mac it renders the mode-select menu and the first gameplay scene (the tutorial cave), a dim mine with its gold ore, grass and light shafts ([Open](#open)).
+A Switch 2 game: update v458752 over the base game, SDK 20.5.19 built for the Switch 2 (`sdk` names its spec `Ounce`), NVN2. Nintendo EPD's engine (sead / agl / gsys, Phive), modules `main` + `sdk`. **In bring-up, not playable yet:** on the Mac it plays its first level's opening: Donkey Kong punches through the mining tunnel, gold and the HUD count, and the guide movies play in their panel ([Open](#open)). Only the first few minutes are tested.
 
 ## What it needs
 
@@ -43,14 +43,14 @@ Each step below stopped the boot before its fix:
 3. NVN2 reports API 231: the game requires major 231, minor ≥ 30 (`main+0x5c61a4`) and creates no graphics system otherwise (null read in its frame loop). `dm_sdk_ounce` (the sdk's `spec: Ounce`) selects 231.30 (`hle_nvn.c`).
 4. 197 NVN2 entry points (ray tracing, mesh shaders, DLSS, device commands, HDR window metadata, a ProgramBuilder) were unknown names, so lookups returned null; they are in `names.txt` now, the unimplemented ones going to the red stub. Implemented: the ProgramBuilder (`nvnProgramInitializeFromBuilder` = Initialize + SetShaders), `QueueBuilderSetPrimaryQueue`, `CommandBufferSetRecordingMode` / `SetGeometryProcessingMode` / `SetComputeOverlapMode`.
 5. Switch 2 SDK calls through services the host does not serve: `hid::InitializeJcms` and the Joy-Con mouse sensor (`hle_hid.c`), `oe::GetCurrentGraphicsScale` (`hle_oe.c`), `audio::IsDeviceOutputVolumeAutoTuneModeEnabled` (`hle_audren.c`), `streamplay` (GameShare, `hle_misc.c`), `vi` HDR / VRR / extended swap interval (`dm/gfx/hle_vi.c`).
-6. `nv::InitCheck` (from `main+0xe19d04`, the start of a video decoder, after the first punch) tested the SDK's own flag, which `nv::InitializeGraphics` sets and the host's version of it does not: `hle_nv.c` answers it from the host's record. The same function then calls `nn::codec::video::Initialize`, which crashes in the SDK ([Open](#open)).
+6. `nv::InitCheck` (from `main+0xe19d04`, the start of a video decoder, after the first punch) tested the SDK's own flag, which `nv::InitializeGraphics` sets and the host's version of it does not: `hle_nv.c` answers it from the host's record. The same function then starts a video decoder: the Switch 2's `nn::codec` video API and sync point events, served on the host ([`nn::codec` video decoders taken over](../../../docs/reference/movies.md#nncodec-video-decoders-taken-over)).
 
 ## Open
 
-- **Video decoding:** the Switch 2's `nn::codec` video API (about 70 entry points: H.264, AV1, VP8 and VP9 decoders, decoder image pools, NV12 / RGBA readback) is not served; the game crashes at `nn::codec::video::Initialize` after the first punch.
+- **Video decoding:** only VP9 through `nn::codec` is served; the guide movies play (a 180-picture clip on loop in the tutorial's panel, read back as NV12).
 - **The gameplay picture:** compared with no reference capture; Donkey Kong was not seen yet on the first screen (the camera faces a rock wall).
 - **Shaders not translated (71, measured before the upscaler work; LEPC and MATCH have come since):** 55 load through addresses read from memory (no storage buffer to turn the access into); the others use instructions the frontend lacks (0x958, 0x3c4, 0x593). The package has not been counted again.
-- No full shader build yet (boot keys only), so no library stamp, `c1_full.tsv` or `cb_extent.tsv`.
+- Full shader build (chain 9a0726336e9d, about 75 minutes on the Mac): 22,834 of 22,852 shaders; 7 do not translate (Ampere 0x958, 0x593, 0x3c4) and 11 fail in the Metal compiler, not looked at yet.
 - `oe::GetCurrentGraphicsScale`: which tier the console reports in which mode is not measured (the host answers 0 handheld, 1 console).
 - GetInfo types 29 and 30, and the 9 GB pool.
 - The NVN2 device values (`nvnDeviceGetInteger`) are still the Switch 1 ones.
@@ -61,4 +61,5 @@ Each step below stopped the boot before its fix:
 - Everything under [Boot](#boot-mac) is new: the first Switch 2 game here.
 - [Ampere shader code (Switch 2)](../../../docs/reference/shaders.md#ampere-shader-code-switch-2): the translator's Ampere frontend, its scoreboard model and the IPA / texture / load semantics found on this game's menu (green boxes instead of text; no text); the tensor instructions, NVN2 compute's c[0] layout and push constants, MUFU SIN / COS in turns, and the storage base rule found in its gameplay.
 - [The Switch 2's order inside a GOB](../../../docs/reference/nvn-objects.md#the-switch-2s-order-inside-a-gob): the textures from its files.
+- [`nn::codec` video decoders taken over](../../../docs/reference/movies.md#nncodec-video-decoders-taken-over): the guide movies.
 - [Mip-chain pass sampling the level it renders](../../../docs/reference/rendering.md#mip-chain-pass-sampling-the-level-it-renders): the environment cube's NaN texels.
