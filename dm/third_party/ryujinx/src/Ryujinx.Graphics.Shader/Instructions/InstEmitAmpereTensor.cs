@@ -21,6 +21,48 @@ namespace Ryujinx.Graphics.Shader.Instructions
             x(0x83b, InstName.Lds, ALdsm, N);
             x(0x23a, InstName.Mov, AMovm, N);
             x(0x3a1, InstName.Vote, AMatch, N);
+            x(0x3c4, InstName.Vote, ARedux, N, writesRd: false);
+        }
+
+        // REDUX URd, Ra (Mesa NAK OpRedux): Ra of the warp's active lanes reduced into a uniform register; 78..81: and, or, xor, sum, min, max; 73: signed min / max
+        public static void ARedux(EmitterContext context)
+        {
+            AmpereOp x = new(context.CurrOp);
+            int op = x.Bits(78, 81);
+            bool signed = x.Bit(73);
+
+            if (op > 5)
+            {
+                throw AFail(context, $"REDUX operation {op}");
+            }
+
+            Operand src = AGpr(x.Ra);
+            Operand active = context.Ballot(Const(IrConsts.True), 0);
+            Operand acc = null;
+
+            for (int lane = 0; lane < 32; lane++)
+            {
+                Operand v = context.Shuffle(src, Const(lane));
+                Operand r = acc == null ? v : op switch
+                {
+                    0 => context.BitwiseAnd(acc, v),
+                    1 => context.BitwiseOr(acc, v),
+                    2 => context.BitwiseExclusiveOr(acc, v),
+                    3 => context.IAdd(acc, v),
+                    4 => signed ? context.IMinimumS32(acc, v) : context.IMinimumU32(acc, v),
+                    _ => signed ? context.IMaximumS32(acc, v) : context.IMaximumU32(acc, v),
+                };
+                Operand on = context.ICompareNotEqual(context.BitwiseAnd(context.ShiftRightU32(active, Const(lane)), Const(1)), Const(0));
+
+                // The first active lane starts the reduction; lanes that are not active leave it as it is
+                acc = acc == null ? context.ConditionalSelect(on, v, Const(op == 0 ? -1 : op == 4 ? (signed ? int.MaxValue : -1) : op == 5 ? (signed ? int.MinValue : 0) : 0))
+                                  : context.ConditionalSelect(on, r, acc);
+            }
+
+            if (x.Rd != RegisterConsts.UniformZeroIndex)
+            {
+                context.Copy(Register(x.Rd, RegisterType.Uniform), acc);
+            }
         }
 
         // MATCH.ANY / .ALL Rd, Ra (Mesa NAK OpMatch: .U64 73, .ANY 79, the predicate of .ALL 81..84): the active lanes whose value (Ra, or Ra and Ra + 1) equals this lane's,

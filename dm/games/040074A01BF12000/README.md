@@ -50,7 +50,7 @@ Each step below stopped the boot before its fix:
 - **Video decoding:** only VP9 through `nn::codec` is served; the guide movies play (a 180-picture clip on loop in the tutorial's panel, read back as NV12).
 - **The gameplay picture:** compared with no reference capture; Donkey Kong was not seen yet on the first screen (the camera faces a rock wall).
 - **Shaders not translated (71, measured before the upscaler work; LEPC and MATCH have come since):** 55 load through addresses read from memory (no storage buffer to turn the access into); the others use instructions the frontend lacks (0x958, 0x3c4, 0x593). The package has not been counted again.
-- Full shader build (chain 9a0726336e9d, about 75 minutes on the Mac): 22,834 of 22,852 shaders; 7 do not translate (Ampere 0x958, 0x593, 0x3c4) and 11 fail in the Metal compiler, not looked at yet.
+- Full shader build (about 75 minutes on the Mac from an empty cache): 22,850 of 22,852 shaders on chain 69cb41b82505. Chain 9a0726336e9d had 22,834: the Metal compiler refused 11 (too deeply nested jump tables) and 5 used BRXU or REDUX ([Ampere shader code](../../../docs/reference/shaders.md#ampere-shader-code-switch-2)); 2 still do not translate (0x593).
 - `oe::GetCurrentGraphicsScale`: which tier the console reports in which mode is not measured (the host answers 0 handheld, 1 console).
 - GetInfo types 29 and 30, and the 9 GB pool.
 - The NVN2 device values (`nvnDeviceGetInteger`) are still the Switch 1 ones.

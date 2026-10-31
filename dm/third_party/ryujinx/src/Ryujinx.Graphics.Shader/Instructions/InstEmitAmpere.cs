@@ -14,6 +14,7 @@ namespace Ryujinx.Graphics.Shader.Instructions
     {
         public const int Bra = 0x947;
         public const int Brx = 0x949;
+        public const int Brxu = 0x958;   // BRX on a uniform register
         public const int Exit = 0x94d;
         public const int Kill = 0x95b;
         public const int Ret = 0x950;
@@ -59,6 +60,7 @@ namespace Ryujinx.Graphics.Shader.Instructions
             // threads: per thread they do nothing.
             X(AmpereOpcodes.Bra, InstName.Bra, InstEmit.ABra, B, writesRd: false);
             X(AmpereOpcodes.Brx, InstName.Brx, InstEmit.ABrx, B, writesRd: false);
+            X(AmpereOpcodes.Brxu, InstName.Brx, InstEmit.ABrx, B, writesRd: false);
             X(AmpereOpcodes.Exit, InstName.Exit, InstEmit.AExit, B, writesRd: false);
             X(AmpereOpcodes.Kill, InstName.Kil, InstEmit.AKill, B, writesRd: false);
             X(AmpereOpcodes.Ret, InstName.Ret, InstEmit.ARet, B, writesRd: false);
@@ -428,7 +430,7 @@ namespace Ryujinx.Graphics.Shader.Instructions
             }
 
             long next = (long)currOp.Address + Decoder.AmpereInstSize + op.BranchOffset;
-            Operand address = context.IAdd(Register(op.Ra, RegisterType.Gpr), Const((int)next));
+            Operand address = context.IAdd(Register(op.Ra, op.Opcode == AmpereOpcodes.Brxu ? RegisterType.Uniform : RegisterType.Gpr), Const((int)next));
             Block[] targets = context.CurrBlock.Successors.Skip(startIndex).OrderBy(b => b.Address).ToArray();
 
             for (int i = 0; i < targets.Length; i++)

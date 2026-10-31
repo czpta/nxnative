@@ -294,10 +294,29 @@ namespace Ryujinx.Graphics.Shader.Decoders
         }
 
         // BRX Ra, imm: to the next instruction + Ra + imm. Ra comes from a jump table in the c1 constant segment, loaded by an LDC c[0x1][Rx + base] before the
-        // BRX; the table's entries that land on an instruction inside the program are the targets, up to the first that does not.
+        // BRX; the table's entries that land on an instruction inside the program are the targets, up to the first that does not, and up to the next table another
+        // BRX of the program reads. The compiler lays a shader's switch tables out back to back in c1 (Donkey Kong Bananza's SilverStarMaterial vertex shaders: tables
+        // of 8, 6, ... entries from c1 0x0, each index clamped by IMNMX first), and their entries are all code offsets: read on to the end, the first table took
+        // every later switch's targets as its own, 400 and more, whose nested comparisons went past the Metal compiler's 256 nested brackets
         private static bool FindBrxTargetsAmpere(Context context, IGpuAccessor gpuAccessor, ulong startAddress, IEnumerable<Block> blocks, Func<ulong, Block> getBlock)
         {
             bool hasNewTarget = false;
+            SortedSet<int> tableBases = [];
+
+            foreach (Block block in blocks)
+            {
+                AmpereOp op = new(block.GetLastOp());
+
+                if (op.Opcode is AmpereOpcodes.Brx or AmpereOpcodes.Brxu)
+                {
+                    int b = FindBrxTableAmpere(block, op.Ra, op.Opcode == AmpereOpcodes.Brxu);
+
+                    if (b >= 0)
+                    {
+                        tableBases.Add(b);
+                    }
+                }
+            }
 
             foreach (Block block in blocks)
             {
@@ -305,12 +324,12 @@ namespace Ryujinx.Graphics.Shader.Decoders
                 AmpereOp brx = new(lastOp);
                 bool hasNext = block.HasNext();
 
-                if (brx.Opcode != AmpereOpcodes.Brx || block.Successors.Count != (hasNext ? 1 : 0))
+                if (brx.Opcode is not (AmpereOpcodes.Brx or AmpereOpcodes.Brxu) || block.Successors.Count != (hasNext ? 1 : 0))
                 {
                     continue;
                 }
 
-                int baseOffset = FindBrxTableAmpere(block, brx.Ra);
+                int baseOffset = FindBrxTableAmpere(block, brx.Ra, brx.Opcode == AmpereOpcodes.Brxu);
 
                 if (baseOffset < 0)
                 {
@@ -320,7 +339,18 @@ namespace Ryujinx.Graphics.Shader.Decoders
                 HashSet<ulong> seen = [];
                 long next = (long)lastOp.Address + AmpereInstSize + brx.BranchOffset;
 
-                for (int k = 0; baseOffset + k * 4 + 4 <= gpuAccessor.QueryConstantBuffer1Size(); k++)
+                int tableEnd = gpuAccessor.QueryConstantBuffer1Size();
+
+                foreach (int b in tableBases)
+                {
+                    if (b > baseOffset)
+                    {
+                        tableEnd = Math.Min(tableEnd, b);
+                        break;
+                    }
+                }
+
+                for (int k = 0; baseOffset + k * 4 + 4 <= tableEnd; k++)
                 {
                     int value = (int)context.ConstantBuffer1Read(baseOffset + k * 4);
                     long target = next + value;
@@ -343,8 +373,9 @@ namespace Ryujinx.Graphics.Shader.Decoders
             return hasNewTarget;
         }
 
-        // The c[0x1] byte offset of the LDC that last wrote reg in this block (or a predecessor chain of single blocks), or -1.
-        private static int FindBrxTableAmpere(Block block, int reg)
+        // The c[0x1] byte offset of the LDC that last wrote reg in this block (or a predecessor chain of single blocks), or -1. BRXU's register is a uniform one,
+        // loaded by the uniform LDC with a uniform index (ULDC 0xabb); a write to the register of the same number in the other file does not count.
+        private static int FindBrxTableAmpere(Block block, int reg, bool uniform)
         {
             HashSet<Block> visitedBlocks = [];
 
@@ -354,12 +385,12 @@ namespace Ryujinx.Graphics.Shader.Decoders
                 {
                     AmpereOp op = new(block.OpCodes[i]);
 
-                    if (op.Opcode == AmpereOpcodes.Ldc && op.Rd == reg)
+                    if (op.Opcode == (uniform ? 0xabb : AmpereOpcodes.Ldc) && op.Rd == reg)
                     {
                         return op.Bits(54, 59) == 1 && op.Bits(78, 80) == 0 ? (int)op.SignedField(38, 54) : -1;
                     }
 
-                    if (op.Rd == reg && AmpereTable.WritesRd(op.Opcode))
+                    if (op.Rd == reg && AmpereTable.WritesRd(op.Opcode) && AmpereTable.HasUniformGuard(op.Opcode) == uniform)
                     {
                         return -1;
                     }
