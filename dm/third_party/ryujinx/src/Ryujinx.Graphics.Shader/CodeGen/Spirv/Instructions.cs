@@ -42,6 +42,7 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Spirv
             Add(Instruction.AtomicXor,                GenerateAtomicXor);
             Add(Instruction.Ballot,                   GenerateBallot);
             Add(Instruction.Barrier,                  GenerateBarrier);
+            Add(Instruction.SubgroupBarrier,          GenerateSubgroupBarrier);
             Add(Instruction.BitCount,                 GenerateBitCount);
             Add(Instruction.BitfieldExtractS32,       GenerateBitfieldExtractS32);
             Add(Instruction.BitfieldExtractU32,       GenerateBitfieldExtractU32);
@@ -252,6 +253,17 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Spirv
             context.ControlBarrier(
                 context.Constant(context.TypeU32(), Scope.Workgroup),
                 context.Constant(context.TypeU32(), Scope.Workgroup),
+                context.Constant(context.TypeU32(), MemorySemanticsMask.WorkgroupMemory | MemorySemanticsMask.AcquireRelease));
+
+            return OperationResult.Invalid;
+        }
+
+        // nxnative: the lanes of one subgroup (Metal: simdgroup_barrier), with their workgroup memory accesses ordered
+        private static OperationResult GenerateSubgroupBarrier(CodeGenContext context, AstOperation operation)
+        {
+            context.ControlBarrier(
+                context.Constant(context.TypeU32(), Scope.Subgroup),
+                context.Constant(context.TypeU32(), Scope.Subgroup),
                 context.Constant(context.TypeU32(), MemorySemanticsMask.WorkgroupMemory | MemorySemanticsMask.AcquireRelease));
 
             return OperationResult.Invalid;

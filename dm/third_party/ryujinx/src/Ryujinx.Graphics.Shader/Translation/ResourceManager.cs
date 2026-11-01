@@ -125,6 +125,20 @@ namespace Ryujinx.Graphics.Shader.Translation
             }
         }
 
+        // nxnative: the scratch of Ampere HMMA (InstEmitAmpereTensor.AHmma, helper dmsh_hmma16816_f16): a shared memory of its own, 256 words for each subgroup of the
+        // workgroup, made the first time an HMMA needs it
+        public int HmmaScratchMemoryId { get; private set; } = -1;
+
+        public int GetHmmaScratchMemoryId(int subgroups)
+        {
+            if (HmmaScratchMemoryId < 0)
+            {
+                HmmaScratchMemoryId = Properties.AddSharedMemory(new MemoryDefinition("hmma_scratch", AggregateType.Array | AggregateType.U32, 256 * subgroups));
+            }
+
+            return HmmaScratchMemoryId;
+        }
+
         public void SetVertexAsComputeLocalMemories(ShaderStage stage, InputTopology inputTopology)
         {
             LocalVertexDataMemoryId = AddMemoryDefinition("local_vertex_data", AggregateType.Array | AggregateType.FP32, Reservations.OutputSizePerInvocation);

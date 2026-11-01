@@ -45,6 +45,7 @@ namespace Ryujinx.Graphics.Shader.Instructions
             x(0xb99, InstName.Suld, ASurface, N);
             x(0xb9b, InstName.Sust, ASurface, N, writesRd: false);
             x(0xb9d, InstName.Sust, ASurface, N, writesRd: false);
+            x(0x593, InstName.Suatom, ASuatom, N);
             x(0xb1d, InstName.Bar, ABar, N, writesRd: false);
         }
 
@@ -361,6 +362,27 @@ namespace Ryujinx.Graphics.Shader.Instructions
             {
                 EmitSust(context, CacheOpSt.Wb, dim, size, handle, mask, x.Ra, x.Rb, 0, formatted, false, false, cbufSlot);
             }
+        }
+
+        // SUATOM Rd, [Ra], Rb (0x593): an atomic on an image through a handle, laid out as SUST's (handle 40..59, dimension 61..64) and as ATOMG's (operation
+        // 87..91, size 73..76, Pu 81..83). Donkey Kong Bananza's append compute shaders take a counter with it (SUATOM.ADD.U32 on a 1D image, the old value
+        // shuffled to the warp) before their SUST. Another handle bank or a predicate result is not met in a game: refused.
+        public static void ASuatom(EmitterContext context)
+        {
+            AmpereOp x = new(context.CurrOp);
+            (int handle, int cbufSlot) = ATexHandle(context, x);
+
+            if (cbufSlot != TextureOperation.DefaultCbufSlot)
+            {
+                throw AFail(context, $"SUATOM handle in bank {cbufSlot}");
+            }
+
+            if (x.Bits(81, 84) != 7)
+            {
+                throw AFail(context, "SUATOM with a predicate result");
+            }
+
+            EmitSuatom(context, (SuDim)x.Bits(61, 64), 0, (SuatomOp)x.Bits(87, 91), (SuatomSize)x.Bits(73, 76), handle, x.Ra, x.Rb, 0, x.Rd, false, isBindless: false, compareAndSwap: false);
         }
 
         // BAR.SYNC: the workgroup barrier

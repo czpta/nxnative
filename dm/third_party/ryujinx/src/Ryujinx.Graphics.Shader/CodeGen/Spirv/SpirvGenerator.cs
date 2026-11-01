@@ -156,6 +156,12 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Spirv
                 SpvInstruction funcType = context.TypeFunction(retType, false, funcArgs);
                 SpvInstruction spvFunc = context.Function(retType, FunctionControlMask.MaskNone, funcType);
 
+                // nxnative: helpers whose body the shader build replaces in the Metal source keep their name (dmsh_hmma16816_f16)
+                if (function.Name.StartsWith("dmsh_"))
+                {
+                    context.Name(spvFunc, function.Name);
+                }
+
                 context.DeclareFunction(funcIndex, function, spvFunc);
             }
 

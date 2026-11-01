@@ -133,6 +133,39 @@ namespace Ryujinx.Graphics.Shader.Instructions
                 throw AFail(context, $"HMMA size {size} source type {x.Bits(82, 84)}");
             }
 
+            // nxnative: HMMA.16816 with an f16 accumulator in a compute shader (agl's upscaler networks: every HMMA of Donkey Kong Bananza's agl_ndsr.pck) becomes
+            // MatrixMultiplyAdd, then a call of dmsh_hmma16816_f16 (TensorPass), which the shader build turns into simdgroup_matrix code. Emulated per lane, it took 32
+            // shuffles and 64 FMAs a lane per HMMA, 2.3-6.5 ms a frame for the upscaler's dispatch on an M4 Pro, five times the simdgroup_matrix version's cost
+            ShaderDefinitions defs = context.TranslatorContext.Definitions;
+
+            if (size == 1 && !f32 && defs.Stage == ShaderStage.Compute)
+            {
+                int threads = defs.ComputeLocalSizeX * defs.ComputeLocalSizeY * defs.ComputeLocalSizeZ;
+                int memoryId = context.ResourceManager.GetHmmaScratchMemoryId(System.Math.Max(1, (threads + 31) / 32));
+
+                Operand tidX = context.Load(StorageKind.Input, IoVariable.ThreadId, null, Const(0));
+                Operand tidY = context.Load(StorageKind.Input, IoVariable.ThreadId, null, Const(1));
+                Operand tidZ = context.Load(StorageKind.Input, IoVariable.ThreadId, null, Const(2));
+                Operand flat = context.IAdd(tidX, context.IAdd(context.IMultiply(tidY, Const(defs.ComputeLocalSizeX)),
+                                                              context.IMultiply(tidZ, Const(defs.ComputeLocalSizeX * defs.ComputeLocalSizeY))));
+                Operand block = context.ShiftLeft(context.ShiftRightU32(flat, Const(5)), Const(8));   // the subgroup's 256 words (Metal SIMD-groups are 32 wide, as the warp)
+
+                (Operand d0, Operand d1) = context.Add(Instruction.MatrixMultiplyAdd, (Local(), Local()), Const(memoryId), ALaneId(context), block,
+                    AGpr(x.Ra), AGpr(x.Ra + 1), AGpr(x.Ra + 2), AGpr(x.Ra + 3), AGpr(x.Rb), AGpr(x.Rb + 1), AGpr(x.Rc), AGpr(x.Rc + 1));
+
+                if (x.Rd < RegisterConsts.RegisterZeroIndex)
+                {
+                    context.Copy(Register(x.Rd, RegisterType.Gpr), d0);
+                }
+
+                if (x.Rd + 1 < RegisterConsts.RegisterZeroIndex)
+                {
+                    context.Copy(Register(x.Rd + 1, RegisterType.Gpr), d1);
+                }
+
+                return;
+            }
+
             int k = size == 1 ? 16 : 8;
             int aRegs = k / 4;   // 4 (k16) or 2 (k8): (row g, k lo), (row g + 8, k lo), (row g, k hi), (row g + 8, k hi)
             int bRegs = k / 8;   // 2 or 1
