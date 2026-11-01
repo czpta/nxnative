@@ -8,7 +8,26 @@ Switch 2 games have started too: [Donkey Kong Bananza](dm/games/040074A01BF12000
 
 ## Acknowledgements
 
-nxnative started from **[d2r-mobile](https://github.com/jhaizhou-ops/d2r-mobile)** (MIT), which developed this native-execution approach for Diablo II: Resurrected: its NSO rewriter, Horizon host, NVN-on-Metal layer and iOS app shell. Fixes go both ways. It also builds on **Ryujinx** (MIT; its shader translator, in `dm/third_party/ryujinx` with [a few fixes](dm/third_party/ryujinx/README.md), and a reference for system services), **[Atmosphère](https://github.com/Atmosphere-NX/Atmosphere)** (Horizon's synchronization semantics), **yuzu** (Maxwell encodings, kernel cross-checks), **[LibHac](https://github.com/Thealexbarney/LibHac)** and **hactool** (reading NSPs), **[SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross)** and **[glslang](https://github.com/KhronosGroup/glslang)** (shaders to Metal), **deko3d** (zlib; texture layout sizes), **libvpx**, **stb_vorbis**, the **Vulkan headers** and **NVIDIA FLIP** ([licenses](dm/third_party/README.md)), and **Capstone**, **lz4**, **fontTools** and **XcodeGen** in the build.
+This project is built on other people's work ([licenses](dm/third_party/README.md)):
+
+- **[d2r-mobile](https://github.com/jhaizhou-ops/d2r-mobile)** (MIT) developed this native-execution approach, for Diablo II: Resurrected. nxnative started as a copy of its generic parts: the NSO rewriter, the host that stands in for Horizon, the NVN-on-Metal layer and the iOS app shell. Fixes go both ways.
+- **Ryujinx** (MIT): its shader translator (`Ryujinx.Graphics.Shader`, `Ryujinx.Common` and `Spv.Generator` 1.3.2, in `dm/third_party/ryujinx` with a few fixes listed in [its README](dm/third_party/ryujinx/README.md)) turns the games' shaders into SPIR-V. Its emulation of the kernel and system services is also a reference when the host's behaviour is in doubt.
+- **[Atmosphère](https://github.com/Atmosphere-NX/Atmosphere)**: its kernel, mesosphère, is the reference for Horizon's synchronization semantics (address arbiter, condition variables).
+- **yuzu**: Maxwell instruction encodings for the shader reference tool, and a cross-check for kernel behaviour.
+- **[LibHac](https://github.com/Thealexbarney/LibHac)**: reads NSPs and layers updates over the base game in `dm/tools/nx_extract`.
+- **hactool** did the first extractions.
+- **[SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross)**: SPIR-V to Metal Shading Language.
+- **[glslang](https://github.com/KhronosGroup/glslang)** compiles the GLSL of OpenGL games to SPIR-V for it.
+- **deko3d** (zlib): its texture layout size algorithm is ported in `dm/gfx/nvn/nvn_tex.c`.
+- **[MacNativeGames](https://github.com/ly05010419/MacNativeGames)** (MIT): the GPU widening of 8-bit indices and in-pass clears in `dm/gfx/nvn/nvn_mtl.m`, and the visibility-counter lowering in the shader translator.
+- **libvpx**: decodes the games' VP9 movies.
+- **stb_vorbis**: decodes the movies' sound.
+- **Vulkan headers**: for the Vulkan layer on Metal.
+- **NVIDIA FLIP**: the image quality measurements.
+- **Capstone**: disassembly for the NSO rewriter and the analysis tools.
+- **lz4**: decompresses NSO modules in the build.
+- **fontTools**: builds the stand-in font for the controller button icons in game text.
+- **XcodeGen**: generates the iOS app's Xcode project.
 
 ## How to play
 
@@ -62,6 +81,25 @@ Install the IPA on your iPhone or iPad with a sideloading tool such as AltStore,
 Game too big to install? Build again with `--romfs separate`, and run the command the script prints once to copy the game files to your phone ([Quick reinstalls](docs/development.md#quick-reinstalls)).
 
 Controls, saves and settings: [Playing](docs/playing.md).
+
+### Switch 2 games
+
+A Switch 2 game is packed from a folder of its files, not from NSPs, and plays on the Mac only so far. `scripts/pack_dump.py` expects this folder (`updates` and `dlc` are optional):
+
+```
+~/Games/DonkeyKongBananza/
+  base/exefs/                     main, main.npdm, sdk, rtld
+  base/romfs/
+  updates/458752/exefs/           the update's version, as a decimal number
+  updates/458752/romfs/           the patched RomFS, not a patch
+  dlc/040074a01bf13001/0/romfs/   the DLC's title ID
+```
+
+```
+python3 scripts/pack_dump.py ~/Games/DonkeyKongBananza
+```
+
+It packs the newest update (`--version` picks another; 0 is the base game) into `<title ID>_build` in that folder. No script takes it further yet: the rest is by hand ([Build by hand](docs/development.md#build-by-hand-mac)).
 
 ## Games
 
