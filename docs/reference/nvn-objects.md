@@ -512,6 +512,13 @@ Games read this count as a position in their own command memory and size their h
 - **Note:** a wider range only lets more shaders pass such checks.
 - **Found on:** [Bayonetta 3](../../dm/games/01004A4010FEA000/README.md) (SDK 13.3.2, PlatinumGames' engine); [Catherine: Full Body](../../dm/games/0100BF00112C0000/README.md) (its GLSLC 8.2.1 set the earlier SDK 8 value); [Super Mario Odyssey](../../dm/games/0100000000010000/README.md) (the table's 1.14); [ASTRAL CHAIN](../../dm/games/01007300020FA000/README.md) (SDK 6.4, precompiled GPU code 1.15).
 
+### The Switch 2's device values
+
+- **Symptom:** none seen: a Switch 2 game asking `nvnDeviceGetInteger` got the Tegra X1's values (measured on a Switch 1), and items past 0x5F answered 0 with a red line.
+- **Cause:** NVN2 is compiled into the game's own `sdk`, and its answers differ: the procedure table's `DeviceGetInteger` calls a switch over the items (Donkey Kong Bananza's sdk 20.5.19: `sdk+0x5d9960`, items 0 to 0xA9, the default 231) that falls back on a table lookup (`sdk+0x5c0a20`). The item numbers are NVN's (API 231.30 at 0 / 1, GPU code 201.0 to 201.17 at 0x2E to 0x31, 201 = 0xc9, the version of its shaders' control sections). Ampere's differ from the X1's in 32 vertex bindings and attributes, 1,024 compute threads, an unbounded dispatch width, 16 texture levels, 16 KB scratch granularity, 2 KB shader code padding and 32 separate sampler bindings, and items 0x60 to 0xA9 are new. Seventeen items come from the device's own GPU description at run time (scratch scale factors, L2 size, texture layers and sizes, linear stride alignment, pool page size and others), which the binary cannot give.
+- **Fix:** `g_devinfo2` (`hle_nvn.c`), taken for an SDK with the Switch 2's spec (`dm_sdk_ounce`): NVN2's constants, read statically, except vertex bindings and attributes, which stay 16, all the host's tables hold. The run-time items keep the X1 table's value below 0x60 and answer 0 with a red line above it.
+- **Found on:** [Donkey Kong Bananza](../../dm/games/040074A01BF12000/README.md): plays as before with the new values (a 6,900-frame run at 60 fps, no red line).
+
 ### Extensions fetched by name and called unchecked
 
 - **Symptom:** a jump to pc=0 right after the NVN bootstrap loader (`lr=main+0x37fe930`, `[RED] NVN address lookup of an unknown name: nvnSetExternalDebuggerEnabledNVX`).
