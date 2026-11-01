@@ -20,6 +20,8 @@ This project is built on other people's work ([licenses](dm/third_party/README.m
 
 ## How to play
 
+Switch 2 games are built from a folder of their files, not from NSPs, and are tested on the Mac only: see [Switch 2 games](#switch-2-games).
+
 ### With a Mac app
 
 Community projects build on nxnative with Mac apps that turn your games into apps for your iPhone, iPad or Mac, with no command line, and keep them in a library. They are separate projects: questions and bugs about them go to their own pages.
@@ -73,7 +75,7 @@ Controls, saves and settings: [Playing](docs/playing.md).
 
 ### Switch 2 games
 
-A Switch 2 game is packed from a folder of its files, not from NSPs, and plays on the Mac only so far. `scripts/pack_dump.py` expects this folder (`updates` and `dlc` are optional):
+A Switch 2 game is built from a folder of its files, not from NSPs, and needs no `prod.keys`. The script expects this folder (`updates` and `dlc` are optional):
 
 ```
 ~/Games/DonkeyKongBananza/
@@ -85,10 +87,10 @@ A Switch 2 game is packed from a folder of its files, not from NSPs, and plays o
 ```
 
 ```
-python3 scripts/pack_dump.py ~/Games/DonkeyKongBananza
+python3 scripts/build_ipa_from_nsp.py ~/Games/DonkeyKongBananza --platform mac-app
 ```
 
-It packs the newest update (`--version` picks another; 0 is the base game) into `<title ID>_build` in that folder. No script takes it further yet: the rest is by hand ([Build by hand](docs/development.md#build-by-hand-mac)).
+You get a Mac app, with no icon because the folder holds none. iPhone and iPad are untested.
 
 ## Games
 
