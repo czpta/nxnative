@@ -146,6 +146,13 @@ Finding, keying and translating shaders (`dm/gfx/tools/shader_split.py`, `dmsh_b
 - **Found on:** [Fire Emblem: Three Houses](../../dm/games/010055D009F78000/README.md) (the older KTGL).
 - **Note:** nine more shaders exist only at run time ([Built-in shaders compiled with the game's own GLSLC](#built-in-shaders-compiled-with-the-games-own-glslc)).
 
+### GLSLC outputs in base64 in Heaps' shader cache
+
+- **Symptom:** the NSP script stops at `the shader split found no shaders in main or the RomFS` on a game whose `main` imports `glslcCompile` and whose RomFS is one or two `.pak` files.
+- **Cause:** Heaps keeps its files in a PAK archive (`PAK`, a version byte, i32 header size, i32 data size; version 1 adds a 64-character hash; then a tree of named entries, `DATA`, and the file data, which starts at the header size). Its `hxsl.CacheFile` for the Switch, `shaders.cache.nx`, holds a table of programs (`!<signature>\t<vertex hash>\t<pixel hash>`), then each stage's GLSL; the GLSL of each program's pixel stage ends with the program's GLSLC output in base64, `//BIN=<base64>#`. The output's magic is hidden by the base64, and GLSL strings are not in `main`, so neither the loose-file scan nor the GLSLC capture rule sees it.
+- **Fix:** `shader_split.py` lists a file that starts with `PAK` by its own header (`heaps_pak_files`; a file that does not parse as one, ending in `DATA`, goes on to the other readers), reads only its `shaders.cache.nx`, and decodes each comment (`heaps_shaders`). Each output holds both stages, so they pair with each other ([GLSLC outputs holding several stages](#glslc-outputs-holding-several-stages)).
+- **Found on:** [Dead Cells](../../dm/games/0100646009FBE000/README.md): `res1.pak`, 1,222 outputs, 1,262 unique shaders and 1,222 pairs.
+
 ### Gust's chunked zlib `.gz` files
 
 - **Symptom:** every frame black, the title screen included, while the game runs at full rate and draws (about 19,000 NVN calls a frame), with `[RED] shader … is not in the shader map` (26 keys in the first minute) and `program has no vertex shader`; the dumped shaders (`DM_NVN_SHDUMP`) match no file byte for byte, and some differ from a split shader only in the control section's compile information (+0x7d0), which is a sign of another GLSLC compile of the same source, not of a shared section.
