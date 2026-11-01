@@ -371,6 +371,14 @@ Most service calls can be found before they crash, before the first boot or the 
 - **Check:** every menu, the cards, the map's drag and flick worked by touch with it. `DM_TOUCH_LOG=1` logs each gesture entry, and a `DM_CTL` line `drag <x0> <y0> <x1> <y1> [seconds]` moves a finger for testing pans and swipes on the Mac.
 - **Found on:** [Taiko Risshiden V DX](../../dm/games/0100346017304000/README.md) (SDK 12.3.3, Koei Tecmo's KTGL).
 
+### Mac pointer stays over the game
+
+- **Symptom:** on the Mac, the mouse pointer stays over the game picture while playing with a controller or the keyboard, in a window and in fullscreen ([issue #675](https://github.com/seedds/nxnative/issues/675)).
+- **Cause:** AppKit hides the pointer only for an app that asks, and `front_mac.m` never asked.
+- **Fix:** a key the game takes, a controller button or a stick past 15% (GameController and raw HID pads alike, `pad_set`) calls `[NSCursor setHiddenUntilMouseMoves:YES]` (`cursor_hide_for_input`), only while the game window is key, the app is active and the pointer is over the content view. AppKit shows the pointer again on the next mouse movement, and `input_release` shows it when the window loses focus. The mouse is the touch screen, so touching shows the pointer.
+- **Check:** with the pointer over the game, a controller button or the keyboard hides it; moving the mouse shows it; over the title bar, or with another app active, it stays.
+- **Found on:** every game on the Mac (general); [PR #584](https://github.com/seedds/nxnative/pull/584).
+
 ### Mouse, keyboard and key code maps
 
 - **Symptom:** the first boot aborted in `hid::GetMouseState` (the SDK's mouse resource was never initialized).
