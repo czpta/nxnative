@@ -379,6 +379,13 @@ Most service calls can be found before they crash, before the first boot or the 
 - **Check:** with the pointer over the game, a controller button or the keyboard hides it; moving the mouse shows it; over the title bar, or with another app active, it stays.
 - **Found on:** every game on the Mac (general); [PR #584](https://github.com/seedds/nxnative/pull/584).
 
+### Mac display sleep during controller play
+
+- **Symptom:** the Mac dims or turns off its display and can reach the lock screen while the player is using a controller, in a window or in fullscreen.
+- **Cause:** macOS counts keyboard and mouse input as user activity, not a controller's, so its display-idle timer keeps running. The host's `NSActivityUserInitiated | NSActivityLatencyCritical` activity (`front_run`) prevents idle system sleep, not display sleep.
+- **Fix:** while the game window is key, `front_mac.m` holds a second activity with `NSActivityIdleDisplaySleepDisabled` (`display_awake`; `pmset -g assertions` shows `PreventUserIdleDisplaySleep` "NxNative active game window"). `input_release` lets go of it when the window loses focus or is minimized, `input_resume` takes it again, and startup takes it if the window became key before the focus observers were installed. Windowless runs never hold it. An explicit lock or sleep still works, and no input is synthesized.
+- **Found on:** [Mario Kart 8 Deluxe](../../dm/games/0100152000022000/README.md) on the Mac, controller play; every game on the Mac (general); [PR #741](https://github.com/seedds/nxnative/pull/741).
+
 ### Mouse, keyboard and key code maps
 
 - **Symptom:** the first boot aborted in `hid::GetMouseState` (the SDK's mouse resource was never initialized).
