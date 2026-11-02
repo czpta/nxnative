@@ -319,6 +319,13 @@ The guest address space, heaps, pools, virtual address memory and the allocators
 - **Fix:** profile key `mem_map_limit` (`hle_svc.c`): a map past the pool fails with ResultLimitReached, and the used memory `GetInfo` reports counts the mapped pages, as on Horizon (without that, the startup probe itself, sized as total − used, was refused).
 - **Found on:** [Pokémon Legends: Z-A](../../dm/games/0100F43008C44000/README.md) (2.0.2, SDK 19.3.11; one boot). Measured: one refused 4 MB map, the 3.15 GB unmap, the same map again.
 
+### Unmapped guest memory stays resident
+
+- **Symptom:** after a large `UnmapPhysicalMemory` or heap shrink, RAM does not come back. `phys_footprint` may still fall, so it hides this: the `guest` class in `DM_MEMSTAT` shows the real figure.
+- **Cause:** on Darwin `mprotect(PROT_NONE)` only removes the page table entries. The pages stay resident and dirty, out of `phys_footprint`, and `madvise(MADV_FREE)` on pages that are not writable does nothing, though it returns 0. Measured on 1 GiB on the Mac: 1,024 MiB still resident and dirty, footprint 1.2 MiB.
+- **Fix:** `guest_release` (`hle_svc.c`) puts a fresh inaccessible mapping over the range (`MAP_FIXED`), which empties it at once and gives zero pages. `UnmapPhysicalMemory` then clears the range's exposed bits, so mapping it again needs no `memset`. A memory pool's no-copy buffer over the range keeps the old pages for the GPU until the buffer goes (measured: the GPU still reads the old data, the CPU sees zeros). A guest that unmaps and remaps under a pool it never finalized would see the two diverge, which Horizon does not allow.
+- **Found on:** [Pokémon Scarlet](../../dm/games/0100A3D008C5C000/README.md), one A/B on its 180 s route on the Mac: peak footprint 4,540 → 3,775 MiB, guest charged 1,809 → 1,372 MiB, 30 fps held. 437 MiB of the footprint drop is guest memory; the other 328 MiB is not explained. [Tears of the Kingdom](../../dm/games/0100F2C0115B6000/README.md) on its 95 s route: footprint flat (4,935 → 4,969 MiB), guest charged 1,887 → 1,685 MiB, with the baseline's pages partly compressed, so that drop is less certain. Open: the iPhone and Z-A, whose shader libraries were stale, were not measured.
+
 ### `GetInfo(UserExceptionContextAddress)` returns a real buffer
 
 - **Symptom:** a write through a null pointer at +0x1c0 during startup.
