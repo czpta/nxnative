@@ -96,6 +96,8 @@ void dm_motion_clear(int player) {
 uint32_t dm_player_npad(int player) { return player == 0 ? 0x20 : (uint32_t)player; }
 
 int dm_opmode(void) { return 0; }
+void dm_set_opmode(int m) { (void)m; }
+const char *front_ios_device_check(void) { return NULL; }   // the harness Metal device is always accepted
 void dm_haptics_apple_init(void) {}
 void dm_haptics_apple_controller(int player, GCController *controller) { (void)player; (void)controller; }
 

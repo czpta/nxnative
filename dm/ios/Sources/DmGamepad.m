@@ -239,6 +239,7 @@ static BOOL fullOnly(int b) { return b == B_LS || b == B_RS || b >= B_LEFT; }   
 - (CGRect)safe { return CGRectIntersection(_layout.controls, UIEdgeInsetsInsetRect(self.bounds, dm_game_safe_insets(self.bounds, self.safeAreaInsets, _layout.topSafeOnly))); }
 - (CGRect)corner { if (_layout.separated) return self.safe; UIEdgeInsets i = self.safeAreaInsets; i.left *= K_CORNER_IN; i.right *= K_CORNER_IN; return UIEdgeInsetsInsetRect(self.bounds, i); }   // the rectangle the bottom-corner controls use
 - (CGFloat)u { if (_layout.separated) { CGRect s = self.safe; return MIN(MIN(s.size.height / 430.0, s.size.width / 700.0), 1.3); } return MIN(self.bounds.size.height / 430.0, 1.3); }   // 1 = 430 points tall (iPhone Pro Max landscape)
+- (CGFloat)pu { return self.bounds.size.height / 430.0; }   // u without the cap, for the bottom controls' distance from the edges: on a larger screen (an unfolded iPhone, an iPad) they move in with it, under the thumbs, while their size stays capped
 static CGPoint side(CGRect s, int right, CGFloat dx, CGFloat y) { return CGPointMake(right ? CGRectGetMaxX(s) - dx : CGRectGetMinX(s) + dx, y); }
 - (BOOL)portraitControls { return _layout.separated && self.bounds.size.height > self.bounds.size.width; }
 - (CGPoint)portraitThumbCenter:(BOOL)right {
@@ -248,8 +249,8 @@ static CGPoint side(CGRect s, int right, CGFloat dx, CGFloat y) { return CGPoint
 }
 - (CGPoint)faceCenter { CGRect s = self.corner; CGFloat u = self.u;
     if (self.portraitControls) return [self portraitThumbCenter:YES];
-    CGFloat edge = _layout.separated ? self.faceGap + self.faceHitR : 0;
-    return side(s, 1, MAX(K_FACE_X * u, edge), CGRectGetMaxY(s) - MAX(K_PAD_Y * u, edge)); }
+    CGFloat edge = _layout.separated ? self.faceGap + self.faceHitR : 0, p = _layout.separated ? u : self.pu;
+    return side(s, 1, MAX(K_FACE_X * p, edge), CGRectGetMaxY(s) - MAX(K_PAD_Y * p, edge)); }
 - (CGFloat)faceGap { return K_FACE_GAP * self.u; }
 - (CGFloat)faceR { return K_FACE_R * self.u; }
 - (CGFloat)faceHitR { return MAX(self.faceR * 1.25, _layout.separated ? 22 : 0); }
@@ -262,7 +263,8 @@ static CGPoint side(CGRect s, int right, CGFloat dx, CGFloat y) { return CGPoint
         return p;
     }
     CGRect s = self.corner;
-    return side(s, 0, K_STICK_X * self.u, CGRectGetMaxY(s) - K_PAD_Y * self.u);
+    CGFloat p = _layout.separated ? self.u : self.pu;
+    return side(s, 0, K_STICK_X * p, CGRectGetMaxY(s) - K_PAD_Y * p);
 }
 - (CGPoint)stickCentre:(int)i { return i ? _rCentre : self.stickHome; }
 - (CGFloat)stickR:(int)i { return (i ? K_RSTICK_R : K_STICK_R) * self.u; }
@@ -273,8 +275,8 @@ static CGPoint side(CGRect s, int right, CGFloat dx, CGFloat y) { return CGPoint
         p.x += [self stickR:0] + 6 * self.u;
         return p;
     }
-    CGRect s = self.corner; CGFloat u = self.u;
-    return side(s, 0, K_LOW_X * u, CGRectGetMaxY(s) - K_LOW_Y * u);
+    CGRect s = self.corner; CGFloat p = _layout.separated ? self.u : self.pu;
+    return side(s, 0, K_LOW_X * p, CGRectGetMaxY(s) - K_LOW_Y * p);
 }
 - (CGFloat)dpadR { return K_DPAD_R * self.u; }
 static BOOL isDrop(int b) { return b == B_ZL || b == B_L || b == B_ZR || b == B_R; }
