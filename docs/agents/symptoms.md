@@ -567,6 +567,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - in a capture run every program links with no uniforms; the game's first `Shader:send` raises a Lua error and, on the Switch, its error handler quits (Any Lua error quits a LÖVE game). → [GL shaders put together at run time and captured](../reference/rendering.md#gl-shaders-put-together-at-run-time-and-captured)
 - an image-only fragment draw's writes disappear from the subresource also bound as its color attachment when the pass ends; other image layers retain their writes. → [Image stores into an attachment of their own pass](../reference/rendering.md#image-stores-into-an-attachment-of-their-own-pass)
 - read-only depth/stencil attachments are written back after every pass, and the periodic unwritten-store savings counter remains zero with the default configuration. → [Unwritten attachment stores without lookahead](../reference/rendering.md#unwritten-attachment-stores-without-lookahead)
+- portrait gameplay overlaps the touch controls, or touch coordinates land outside the game picture. → [iPhone Duo portrait and tabletop layout](../reference/rendering.md#iphone-duo-portrait-and-tabletop-layout)
 
 ## Shaders
 
